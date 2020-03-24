@@ -1,4 +1,28 @@
 
+function MatMul( m1, m2 )
+    if #m1[1] ~= #m2 then       -- inner matrix-dimensions must agree
+        return nil      
+    end 
+ 
+    local res = {}
+ 
+    for i = 1, #m1 do
+        res[i] = {}
+        for j = 1, #m2[1] do
+            res[i][j] = 0
+            for k = 1, #m2 do
+                res[i][j] = res[i][j] + m1[i][k] * m2[k][j]
+            end
+        end
+    end
+ 
+    return res
+end
+ 
+-- Test for MatMul
+
+
+
 	---------------- User Options  -----------------------
 	--p = {-1,-1.5,0.1} 	--P1
 	--p = {1.5, 1,0.1} 		--P2
@@ -11,6 +35,14 @@
 	
 	
 	------------Llamando a los elementos------------------    
+    
+    us_sensorHdl = {}
+    ir_sensorHdl = {}
+    for i=1,5 do 
+		us_sensorHdl[i] = sim.getObjectHandle( 'K4_Ultrasonic_' .. i )
+		ir_sensorHdl[i] = sim.getObjectHandle( 'K4_Infrared_' .. i + 1 )
+    end
+         
         
     bodyElements=sim.getObjectHandle('Khepera_IV')
     rightMotor=sim.getObjectHandle('K4_Right_Motor')
@@ -91,7 +123,6 @@ function runBasicControlRule ( d , ori_err )
 	return v
 end	
 
-
 function runAdvanceControlRule ( d_toTarget , ori_err )
 	
 	wmax = 1.5
@@ -131,6 +162,47 @@ function calculateStatics ( d_toTarget , ori_err )
 end
 
 
+function getDistanceVector( )
+	distance = {}
+	for i=1,5 do
+		usDetect,usDist=sim.readProximitySensor( us_sensorHdl[i], sim_handle_all )
+		irDetect,irDist=sim.readProximitySensor( ir_sensorHdl[i], sim_handle_all )
+		distance[i] = 0.0
+		
+		if usDetect == 1 and irDetect == 1 then
+			distance[i] =  (usDist + irDist ) / 2
+		elseif usDetect == 1 then
+			distance[i] = usDist
+		elseif irDetect == 1 then
+			distance[i] = irDist
+		end
+	end
+	
+	--print(distance[1],distance[2],distance[3],distance[4],distance[5])
+	return distance
+end
+
+
+function calculateObs( ) 
+
+
+	mat1 = { { 1, 1, 1, 1, 1 }, { 1, 1, 1, 1, 1 } }
+	res = getDistanceVector( )
+	
+	
+	dist = {}          -- create the matrix
+    for i=1,5 do
+      dist[i] = {}     -- create a new row
+      for j=1,1 do
+        dist[i][j] = res[i]
+      end
+    end
+	
+	
+	erg = MatMul( mat1, dist )
+	print( erg )
+	--print(dist[1],dist[2],dist[3],dist[4],dist[5])
+end
 	
 while (true) do 
 
@@ -150,13 +222,14 @@ while (true) do
 
         -- Cinematic model, get the angular velocity wheels from linear 
         -- and angular robot velocity.
-        wr = (2*v[1] - v[2]*wheelsdist) / (2*rwheel)
-        wl = (2*v[1] + v[2]*wheelsdist) / (2*rwheel)
+        wr = 1--(2*v[1] - v[2]*wheelsdist) / (2*rwheel)
+        wl = 1--(2*v[1] + v[2]*wheelsdist) / (2*rwheel)
         
         -- Set angular velocity for each wheel.
         sim.setJointTargetVelocity(leftMotor,wl) --Cm/s a m/s
         sim.setJointTargetVelocity(rightMotor,wr)
 		
+		calculateObs( ) 
      
 		calculateStatics ( d , ori_err )
 		if 0.005 > d then
