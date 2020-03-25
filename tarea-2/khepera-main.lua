@@ -125,8 +125,8 @@ end
 
 function runAdvanceControlRule ( d_toTarget , ori_err )
 	
-	wmax = 1.5
-    Vmax = 0.8
+	wmax = 1
+    Vmax = 0.15
     Vmin = 0.1
     Kr = 0.6
     Ki = 0.4
@@ -162,13 +162,19 @@ function calculateStatics ( d_toTarget , ori_err )
 end
 
 
+	SdistMax = 0.25 --m
+
 function getDistanceVector( )
 	distance = {}
 	for i=1,5 do
 		usDetect,usDist=sim.readProximitySensor( us_sensorHdl[i], sim_handle_all )
 		irDetect,irDist=sim.readProximitySensor( ir_sensorHdl[i], sim_handle_all )
-		distance[i] = 0.0
+		distance[i] = SdistMax
 		
+		if irDetect == 1 then
+			distance[i] = irDist
+		end
+		--[[
 		if usDetect == 1 and irDetect == 1 then
 			distance[i] =  (usDist + irDist ) / 2
 		elseif usDetect == 1 then
@@ -176,32 +182,47 @@ function getDistanceVector( )
 		elseif irDetect == 1 then
 			distance[i] = irDist
 		end
+		]]
+		
+		
 	end
 	
-	--print(distance[1],distance[2],distance[3],distance[4],distance[5])
 	return distance
+end
+
+function isAnyDetection( )
+	detection = false
+	for i=1,5 do
+		irDetect,irDist=sim.readProximitySensor( ir_sensorHdl[i], sim_handle_all )
+		if irDetect == 1 then
+			detection = true
+			print("detection")
+		end
+	end
+	return detection
 end
 
 
 function calculateObs( ) 
 
 
-	mat1 = { { 1, 1, 1, 1, 1 }, { 1, 1, 1, 1, 1 } }
-	res = getDistanceVector( )
-	
+	mat1 = { { 1, 0.9, 0.3, 0.01, 0}, { 0, 0.01, 0.3, 0.9, 1 } }
+	Sdist = getDistanceVector( )
+	--print(Sdist)
 	
 	dist = {}          -- create the matrix
     for i=1,5 do
       dist[i] = {}     -- create a new row
       for j=1,1 do
-        dist[i][j] = res[i]
+        dist[i][j] = ( Sdist[i] / SdistMax ) 
       end
     end
 	
 	
-	erg = MatMul( mat1, dist )
-	print( erg )
+	res = MatMul( mat1, dist )
+	--print( res )
 	--print(dist[1],dist[2],dist[3],dist[4],dist[5])
+	return res
 end
 	
 while (true) do 
@@ -220,16 +241,32 @@ while (true) do
 			print('Error control rule' )
         end
 
-        -- Cinematic model, get the angular velocity wheels from linear 
-        -- and angular robot velocity.
-        wr = 1--(2*v[1] - v[2]*wheelsdist) / (2*rwheel)
-        wl = 1--(2*v[1] + v[2]*wheelsdist) / (2*rwheel)
         
+        res = calculateObs( ) 
+        
+        
+        --wr = (2*v[1] - v[2]*wheelsdist) / (2*rwheel)
+		--wl = (2*v[1] + v[2]*wheelsdist) / (2*rwheel)
+			
+        
+        if isAnyDetection( ) then
+			wr = res[1][1]*2 
+			wl = res[2][1]*2
+        else
+			-- Cinematic model, get the angular velocity wheels from linear 
+			-- and angular robot velocity.
+			wr = (2*v[1] - v[2]*wheelsdist) / (2*rwheel)
+			wl = (2*v[1] + v[2]*wheelsdist) / (2*rwheel)
+        end
+        
+        
+        --print("v1", v[1]," v2", v[2] )
+                
         -- Set angular velocity for each wheel.
         sim.setJointTargetVelocity(leftMotor,wl) --Cm/s a m/s
         sim.setJointTargetVelocity(rightMotor,wr)
 		
-		calculateObs( ) 
+		
      
 		calculateStatics ( d , ori_err )
 		if 0.005 > d then
