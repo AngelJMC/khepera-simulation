@@ -1,48 +1,14 @@
 
-function MatMul( m1, m2 )
-    if #m1[1] ~= #m2 then       -- inner matrix-dimensions must agree
-        return nil      
-    end 
- 
-    local res = {}
- 
-    for i = 1, #m1 do
-        res[i] = {}
-        for j = 1, #m2[1] do
-            res[i][j] = 0
-            for k = 1, #m2 do
-                res[i][j] = res[i][j] + m1[i][k] * m2[k][j]
-            end
-        end
-    end
- 
-    return res
-end
- 
--- Test for MatMul
 
-
-
-	---------------- User Options  -----------------------
-	--p = {-1,-1.5,0.1} 	--P1
-	--p = {1.5, 1,0.1} 		--P2
-	--p = {1,0,0.1} 		--P3
-	p = {-1,1.5,0.1} 		--P4
-	
-	--controlRule = "basic" 
-	controlRule = "advance"
-	------------------------------------------------------
-	
+ 	
 	
 	------------Llamando a los elementos------------------    
     
-    us_sensorHdl = {}
     ir_sensorHdl = {}
     for i=1,5 do 
-		us_sensorHdl[i] = sim.getObjectHandle( 'K4_Ultrasonic_' .. i )
 		ir_sensorHdl[i] = sim.getObjectHandle( 'K4_Infrared_' .. i + 1 )
     end
-         
+    SdistMax = 0.25 --m     
         
     bodyElements=sim.getObjectHandle('Khepera_IV')
     rightMotor=sim.getObjectHandle('K4_Right_Motor')
@@ -88,10 +54,6 @@ end
 	t = 0
 	
 	
-	----------------- Set target position -----------------------------
-	targeElement = sim.getObjectHandle('Targetpoint')
-	sim.setObjectPosition( targeElement, -1, p )
-	
 	
 function getDistanceToTarget ( bodyElements, targeElement )
 
@@ -111,25 +73,14 @@ function getOrientationErrorToTarget ( bodyElements, targeElement )
 end
 
 	
-function runBasicControlRule ( d , ori_err )
-	
-	Kp = 0.22
-    wmax = 1.5
-    
-    v={}
-    v[1] = Kp * d 
-	v[2] = wmax * math.sin( ori_err )
-    
-	return v
-end	
 
 function runAdvanceControlRule ( d_toTarget , ori_err )
 	
-	wmax = 1
+	wmax = 0.5
     Vmax = 0.15
-    Vmin = 0.1
-    Kr = 0.6
-    Ki = 0.4
+    Vmin = 0.08
+    Kr = 0.3
+    Ki = 0.1
     
     v={}
     if d_toOrig < Ki then
@@ -162,33 +113,43 @@ function calculateStatics ( d_toTarget , ori_err )
 end
 
 
-	SdistMax = 0.25 --m
+function MatMul( m1, m2 )
+    if #m1[1] ~= #m2 then       -- inner matrix-dimensions must agree
+        return nil      
+    end 
+ 
+    local res = {}
+ 
+    for i = 1, #m1 do
+        res[i] = {}
+        for j = 1, #m2[1] do
+            res[i][j] = 0
+            for k = 1, #m2 do
+                res[i][j] = res[i][j] + m1[i][k] * m2[k][j]
+            end
+        end
+    end
+ 
+    return res
+end
+
+
+	
 
 function getDistanceVector( )
 	distance = {}
 	for i=1,5 do
-		usDetect,usDist=sim.readProximitySensor( us_sensorHdl[i], sim_handle_all )
 		irDetect,irDist=sim.readProximitySensor( ir_sensorHdl[i], sim_handle_all )
 		distance[i] = SdistMax
 		
 		if irDetect == 1 then
 			distance[i] = irDist
-		end
-		--[[
-		if usDetect == 1 and irDetect == 1 then
-			distance[i] =  (usDist + irDist ) / 2
-		elseif usDetect == 1 then
-			distance[i] = usDist
-		elseif irDetect == 1 then
-			distance[i] = irDist
-		end
-		]]
-		
-		
+		end		
 	end
 	
 	return distance
 end
+
 
 function isAnyDetection( )
 	detection = false
@@ -196,17 +157,19 @@ function isAnyDetection( )
 		irDetect,irDist=sim.readProximitySensor( ir_sensorHdl[i], sim_handle_all )
 		if irDetect == 1 then
 			detection = true
-			print("detection")
 		end
 	end
 	return detection
 end
 
 
+
 function calculateObs( ) 
 
 
-	mat1 = { { 1, 0.9, 0.3, 0.01, 0}, { 0, 0.01, 0.3, 0.9, 1 } }
+	mat1 = {{ 0.8,  1.5, 0.1, -0.9,   0 }, 
+			{   0, -0.9, 0.1,  1.5, 0.8 } }
+	
 	Sdist = getDistanceVector( )
 	--print(Sdist)
 	
@@ -224,6 +187,24 @@ function calculateObs( )
 	--print(dist[1],dist[2],dist[3],dist[4],dist[5])
 	return res
 end
+
+
+function sma(period)
+	local t = {}
+	function sum(a, ...)
+		if a then return a+sum(...) else return 0 end
+	end
+	function average(n)
+		if #t == period then table.remove(t, 1) end
+		t[#t + 1] = n
+		return sum(unpack(t)) / #t
+	end
+	return average
+end
+ 
+wl_sma5 = sma(15)
+wr_sma5 = sma(15)
+
 	
 while (true) do 
 
@@ -232,26 +213,13 @@ while (true) do
         d_toOrig = math.sqrt( ( p_robot[1] - p_robotOrig[1] )^2 + ( p_robot[2] - p_robotOrig[2] )^2 )
         ori_err = getOrientationErrorToTarget ( bodyElements, targeElement )
         
-
-        if  controlRule == "basic" then
-			v = runBasicControlRule ( d , ori_err )
-        elseif controlRule == "advance" then
-			v = runAdvanceControlRule ( d , ori_err )
-		else
-			print('Error control rule' )
-        end
-
-        
+		v = runAdvanceControlRule ( d , ori_err )
         res = calculateObs( ) 
         
-        
-        --wr = (2*v[1] - v[2]*wheelsdist) / (2*rwheel)
-		--wl = (2*v[1] + v[2]*wheelsdist) / (2*rwheel)
-			
-        
+                
         if isAnyDetection( ) then
-			wr = res[1][1]*2 
-			wl = res[2][1]*2
+			wr = res[1][1]*2.2 
+			wl = res[2][1]*2.2
         else
 			-- Cinematic model, get the angular velocity wheels from linear 
 			-- and angular robot velocity.
@@ -259,12 +227,14 @@ while (true) do
 			wl = (2*v[1] + v[2]*wheelsdist) / (2*rwheel)
         end
         
-        
+        wl_f = wl_sma5(wl)
+        wr_f = wr_sma5(wr)
+        print( wl_f, wl)
         --print("v1", v[1]," v2", v[2] )
                 
         -- Set angular velocity for each wheel.
-        sim.setJointTargetVelocity(leftMotor,wl) --Cm/s a m/s
-        sim.setJointTargetVelocity(rightMotor,wr)
+        sim.setJointTargetVelocity(leftMotor,wl_f) --Cm/s a m/s
+        sim.setJointTargetVelocity(rightMotor,wr_f)
 		
 		
      
