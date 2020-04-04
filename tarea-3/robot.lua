@@ -17,13 +17,13 @@ module(..., package.seeall )
 			
 	-- Control law aram
 	local wmax = 0.7
-    local Vmax = 0.2
+    --local Vmax = 0.2
     local Vmin = 0.08
     local Kr = 0.3
     local Ki = 0.1
 	
 	
-	function robot:new( class, id )
+	function robot:new( class, id, theta, dist )
 	
 		o = o or {}
 		setmetatable(o, self)
@@ -37,11 +37,17 @@ module(..., package.seeall )
 		for i=1,5 do 
 			self.sensor[i] = sim.getObjectHandle( 'K4_Infrared_' .. i + 1 .. id )
 		end
-		
+		self.theta = theta
+		self.dist  = dist
 		self.wl_sma = lib.sma(15)
 		self.wr_sma = lib.sma(15)
 		self.p_robotOrig = simGetObjectPosition( self.body , -1 )
 		
+		if class == 'master' then
+			self.Vmax  = 0.15
+		else
+			self.Vmax = 0.2
+		end
 		return o
 	end
 	
@@ -61,6 +67,11 @@ module(..., package.seeall )
 		return math.sqrt( ( p_target[1] - p_robot[1] )^2 + ( p_target[2] - p_robot[2])^2 )
 	end
 		
+	function robot:getOrientation( )
+		local o_robot =  sim.getObjectOrientation( self.body, -1)
+		return o_robot[3]
+	end
+
 
 	function robot:getOrientationErrorToTarget ( p_target )
 
@@ -75,11 +86,11 @@ module(..., package.seeall )
 			
 		local v={}
 		if d_toOrig < Ki then
-			v[1] = math.max ( d_toOrig * (Vmax / Ki), Vmin )
+			v[1] = math.max ( d_toOrig * (self.Vmax / Ki), Vmin )
 		elseif d_toTarget < Kr  then
-			v[1] = d_toTarget * (Vmax / Kr)
+			v[1] = d_toTarget * (self.Vmax / Kr)
 		else
-			v[1] = Vmax
+			v[1] = self.Vmax
 		end
 		
 		v[2] = wmax * math.sin( ori_err )
@@ -137,7 +148,7 @@ module(..., package.seeall )
 			if self.class == 'master' then
 				d_toOrig = math.sqrt( ( p_robot[1] - self.p_robotOrig[1] )^2 + ( p_robot[2] - self.p_robotOrig[2] )^2 )
 			else 
-				d_toOrig = 0
+				d_toOrig = 0.2
 			end
 	
 			d_toTarg = robot:getDistanceToTarget ( p_target )
@@ -162,22 +173,41 @@ module(..., package.seeall )
 		return wr, wl
 	end
 	
-	function robot:setTargetVelocity( wr, wl )
 	
-			--wl_f = 
-			--self.wr_f = 
-			--print( wl_f, wl)
-					
+	function robot:setTargetVelocity( wr, wl )
+						
 			-- Set angular velocity for each wheel.
 			sim.setJointTargetVelocity(leftMotor,  self.wl_sma(wl) ) --Cm/s a m/s
 			sim.setJointTargetVelocity(rightMotor, self.wr_sma(wr) )
 	
 	end
 	
+	
 	function robot:isTargetReach( p_target )
 	
 		d_toTarg = robot:getDistanceToTarget ( p_target )
 		return 0.005 > d_toTarg and true or false 
 			
+	end
+	
+	function robot:getSlaveTargetPos( )
+	
+		local data=sim.getStringSignal("masterPos")
+		if data then
+			p_robotMaster = sim.unpackTable(data)
+		end
+		
+		--print(p_robotMaster)
+			
+		p_master = p_robotMaster[1] == nil and rb:getposition( ) or p_robotMaster[1]
+		o_master  = p_robotMaster[2] == nil and rb:getOrientation( ) or p_robotMaster[2]
+		
+		offset = math.pi/2	
+		p_target = p_master
+		p_target[1] = p_master[1] + self.dist*math.cos( o_master + self.theta - offset)
+		p_target[2] = p_master[2] + self.dist*math.sin( o_master + self.theta - offset)
+		
+		
+		return p_target
 	end
 

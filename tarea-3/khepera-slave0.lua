@@ -8,17 +8,16 @@ function sysCall_threadmain()
 	local robotID = '#0'
 	local robotClass = 'slave'
 	
-	local rb = robot:new( robotClass, robotID )
+	local rb = robot:new( robotClass, robotID, 0, 0.5 )
 	sim.setThreadAutomaticSwitch(false) -- disable automatic thread switches
+	
+	local testpoint = sim.getObjectHandle('testpoint#0')
 
 	while sim.getSimulationState()~=sim.simulation_advancing_abouttostop do
 			
-			local myData=sim.getStringSignal("masterPos")
-			if myData then
-				p_robotMaster = sim.unpackTable(myData)
-			end
+			p_target = rb:getSlaveTargetPos( )
 			
-			p_target = p_robotMaster == nil and rb:getposition( ) or p_robotMaster
+			sim.setObjectPosition( testpoint, -1 , p_target)
 			wr,wl = rb:getAngularSpeed( p_target )
 			rb:setTargetVelocity( wr, wl ) 
 			 
