@@ -1,6 +1,30 @@
 local auxlib = {} -- The main table
 	
+	
+	---------- Global Geometry properties -----------------------
+	
+	auxlib.wheelsdist = 0.1
+	auxlib.rwheel = 0.02
+	auxlib.Coef = 2
+	------------------------------------------------------
+	
+	----------- Algorithm variables -------------------------
+	
 
+	
+	-- Braintenberg Algorithm param
+	local SdistMax = 0.25 --m  
+	
+	local Ws = {{ 0,  -1.5, 0.9, 1.3,   1 }, 
+			{   1, 1.3, 0.9,  -1.5, 0 } }
+			
+	-- Control law aram
+	local wmax = 0.7
+    local Vmax = 0.2
+    local Vmin = 0.08
+    local Kr = 0.3
+    local Ki = 0.1
+	
 	
 	function auxlib.test()
 		print("Library!!")
@@ -24,7 +48,7 @@ local auxlib = {} -- The main table
 	end
 
 		
-	function auxlib.runAdvanceControlRule ( d_toTarget , ori_err )
+	function auxlib.runAdvanceControlRule ( d_toTarget, d_toOrig, ori_err )
 			
 		local v={}
 		if d_toOrig < Ki then
@@ -113,7 +137,6 @@ local auxlib = {} -- The main table
 				distance[i] = irDist
 			end		
 		end
-		print(distance)
 		return distance
 	end
 
