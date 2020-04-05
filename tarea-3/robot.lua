@@ -16,11 +16,11 @@ module(..., package.seeall )
 			{   1, 1.3, 0.9,  -1.5, 0 } }
 			
 	-- Control law aram
-	local wmax = 0.7
+	--local wmax = 0.7
     --local Vmax = 0.2
-    local Vmin = 0.08
-    local Kr = 0.3
-    local Ki = 0.1
+    --local Vmin = 0.08
+    --local Kr = 0.3
+    --local Ki = 0.1
 	
 	
 	function robot:new( class, id, theta, dist )
@@ -44,9 +44,17 @@ module(..., package.seeall )
 		self.p_robotOrig = simGetObjectPosition( self.body , -1 )
 		
 		if class == 'master' then
-			self.Vmax  = 0.15
+			self.Vmax   = 0.12
+			self.Vmin	= 0.08
+			self.Kr     = 0.3
+			self.Ki		= 0.1
+			self.wmax   = 1.5
 		else
-			self.Vmax = 0.2
+			self.Vmax   = 0.20
+			self.Vmin	= 0.12
+			self.Kr     = 0.2
+			self.Ki		= 0.1
+			self.wmax   = 3
 		end
 		return o
 	end
@@ -85,15 +93,15 @@ module(..., package.seeall )
 	function robot:runAdvanceControlRule ( d_toTarget, d_toOrig, ori_err )
 			
 		local v={}
-		if d_toOrig < Ki then
-			v[1] = math.max ( d_toOrig * (self.Vmax / Ki), Vmin )
+		if d_toOrig < self.Ki then
+			v[1] = math.max ( d_toOrig * (self.Vmax / self.Ki), self.Vmin )
 		elseif d_toTarget < Kr  then
-			v[1] = d_toTarget * (self.Vmax / Kr)
+			v[1] = d_toTarget * (self.Vmax / self.Kr)
 		else
 			v[1] = self.Vmax
 		end
 		
-		v[2] = wmax * math.sin( ori_err )
+		v[2] = self.wmax * math.sin( ori_err )
 		
 		return v
 	end	
@@ -193,14 +201,13 @@ module(..., package.seeall )
 	function robot:getSlaveTargetPos( )
 	
 		local data=sim.getStringSignal("masterPos")
+		p_robotMaster = {}
 		if data then
 			p_robotMaster = sim.unpackTable(data)
 		end
-		
-		--print(p_robotMaster)
-			
-		p_master = p_robotMaster[1] == nil and rb:getposition( ) or p_robotMaster[1]
-		o_master  = p_robotMaster[2] == nil and rb:getOrientation( ) or p_robotMaster[2]
+				
+		p_master = p_robotMaster[1] == nil and robot:getposition( ) or p_robotMaster[1]
+		o_master  = p_robotMaster[2] == nil and robot:getOrientation( ) or p_robotMaster[2]
 		
 		offset = math.pi/2	
 		p_target = p_master
