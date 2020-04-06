@@ -15,13 +15,6 @@ module(..., package.seeall )
 	local Ws = {{ 0,  -1.5, 0.9, 1.3,   1 }, 
 			{   1, 1.3, 0.9,  -1.5, 0 } }
 			
-	-- Control law aram
-	--local wmax = 0.7
-    --local Vmax = 0.2
-    --local Vmin = 0.08
-    --local Kr = 0.3
-    --local Ki = 0.1
-	
 	
 	function robot:new( class, id, theta, dist )
 	
@@ -42,9 +35,12 @@ module(..., package.seeall )
 		self.wl_sma = lib.sma(15)
 		self.wr_sma = lib.sma(15)
 		self.p_robotOrig = simGetObjectPosition( self.body , -1 )
+		self.d_toTarg = 0
+		self.slaveErr = 0
+		self.Kf = 0
 		
 		if class == 'master' then
-			self.Vmax   = 0.12
+			self.Vmax   = 0.19
 			self.Vmin	= 0.08
 			self.Kr     = 0.3
 			self.Ki		= 0.1
@@ -91,16 +87,16 @@ module(..., package.seeall )
 
 		
 	function robot:runAdvanceControlRule ( d_toTarget, d_toOrig, ori_err )
-			
+		
 		local v={}
 		if d_toOrig < self.Ki then
 			v[1] = math.max ( d_toOrig * (self.Vmax / self.Ki), self.Vmin )
 		elseif d_toTarget < Kr  then
 			v[1] = d_toTarget * (self.Vmax / self.Kr)
 		else
-			v[1] = self.Vmax
+				v[1] = self.Vmax
 		end
-		
+			
 		v[2] = self.wmax * math.sin( ori_err )
 		
 		return v
@@ -159,15 +155,20 @@ module(..., package.seeall )
 				d_toOrig = 0.2
 			end
 	
-			d_toTarg = robot:getDistanceToTarget ( p_target )
+			self.d_toTarg = robot:getDistanceToTarget ( p_target )
 			ori_err = robot:getOrientationErrorToTarget ( p_target )
-			v = robot:runAdvanceControlRule ( d_toTarg, d_toOrig, ori_err )
+			v = robot:runAdvanceControlRule ( self.d_toTarg, d_toOrig, ori_err )
 			
-			Sdist = robot:getDistanceVector( )
-			res = robot:calculateObs( Sdist ) 
+			-- Cooperative rule
+			if self.class == 'master' and self.Kf > 0.0 then
+				v[1] = v[1]  -  self.Kf*self.slaveErr
+				v[1] = v[1] < 0.05 and 0.05 or v[1]
+			end
 			
 					
 			if robot:isAnyDetection( ) then
+				Sdist = robot:getDistanceVector( )
+				res = robot:calculateObs( Sdist ) 
 				wr = res[1][1]*Coef
 				wl = res[2][1]*Coef
 			else
@@ -182,8 +183,7 @@ module(..., package.seeall )
 	end
 	
 	
-	function robot:setTargetVelocity( wr, wl )
-						
+	function robot:setTargetVelocity( wr, wl )	
 			-- Set angular velocity for each wheel.
 			sim.setJointTargetVelocity(leftMotor,  self.wl_sma(wl) ) --Cm/s a m/s
 			sim.setJointTargetVelocity(rightMotor, self.wr_sma(wr) )
@@ -193,8 +193,7 @@ module(..., package.seeall )
 	
 	function robot:isTargetReach( p_target )
 	
-		d_toTarg = robot:getDistanceToTarget ( p_target )
-		return 0.005 > d_toTarg and true or false 
+		return 0.005 > self.d_toTarg and true or false 
 			
 	end
 	
@@ -218,3 +217,20 @@ module(..., package.seeall )
 		return p_target
 	end
 
+	function robot:getErrorToTarget( )
+		return self.d_toTarg
+	end
+
+	
+	function robot:getSlavesError( nslaves )
+		acumerr = 0
+		for i=1,nslaves do
+			data=sim.getStringSignal("errSl#" .. i -1)
+			acumerr = acumerr +  (data and sim.unpackTable(data) or {0})[1]
+		end
+		self.slaveErr = acumerr
+	end
+	
+	function robot:setCooperativeFactor( value ) 
+		self.Kf = value
+	end
