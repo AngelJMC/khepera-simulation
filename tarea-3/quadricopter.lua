@@ -65,6 +65,11 @@
      targetHigh = 1
      imgPos = {0.5,0.5}
          corrCam = {0,0}
+     qdrPos = {0,0,0}
+     numclose = 0
+     euler  = sim.getObjectOrientation( d, -1) 
+     rotVal = euler[3]
+     newrot = rotVal
 end
 
 
@@ -121,55 +126,71 @@ function sysCall_actuation()
     
 
     -- Rising quadcopter if drone is no detected
-    high = liderDetection and 0.4 or 4
-        
+    high = liderDetection and 0.5 or 4
     alpha = 0.99
     targetHigh = high*(1 - alpha) + alpha*targetHigh
-    
     targetPos[3] = targetHigh
     
     -- Vertical control:
-
     l = sim.getVelocity(heli)
     e = targetPos[3] - pos[3]
     cumul = cumul + e
     thrust = 5.335 + pParam*e + iParam*cumul + dParam*(e-lastE) + vParam*l[3]
     lastE = e
     
-    
     --Corregir proyeccion cámara
     if liderDetection then
 		corrCam[1] = -1*math.sin(orit[2])
 		corrCam[2] =  1*math.sin(orit[1])
     end
-    
-    
+
     -- Horizontal control: 
-    sp = sim.getObjectPosition( targetObj, d)
     m  = sim.getObjectMatrix( d, -1)
     
+    sp = {}
     sp[1] = 0.5 - imgPos[1]  + corrCam[1]
     sp[2] = 0.5 - imgPos[2]  + corrCam[2]
     
     
+    rTocenter = math.sqrt( math.pow(sp[1],2) +  math.pow(sp[2],2) )
+    
+    if liderDetection and rTocenter < 0.2 then
+		if numclose == 0 then
+			qdrPos = pos
+		elseif numclose == 10 then
+			delta = {pos[1] - qdrPos[1], pos[2] - qdrPos[2]}
+			qdrPos = pos
+			newrot = math.atan2( delta[2], delta[1] ) 
+			
+			numclose = 0
+		end
+		numclose = numclose + 1
+    else
+		numclose = 0
+	end
+	
+	
+	--print('Dir:', rotVal , 'X', pos[1], 'Y', pos[2] )
+	
+    
     vy = sim.multiplyVector( m, {0,1,0} )
     alphaE = vy[3] - m[12]
-    alphaCorr = 0.15*alphaE + 1.1*(alphaE - pAlphaE)
+    alphaCorr = 0.15*alphaE + 1.8*(alphaE - pAlphaE) + sp[2]*0.005 + 0.5*(sp[2] - psp2)
     pAlphaE = alphaE
-    alphaCorr = alphaCorr + sp[2]*0.01 + 0.5*(sp[2] - psp2)
     psp2 = sp[2]
     
     vx = sim.multiplyVector( m, {1,0,0} )
     betaE = vx[3] - m[12]
-    betaCorr = -0.15*betaE - 1.1*(betaE - pBetaE)
+    betaCorr  = -0.15*betaE - 1.8*(betaE - pBetaE) - sp[1]*0.005 - 0.5*(sp[1] - psp1)
     pBetaE = betaE
-    betaCorr = betaCorr - sp[1]*0.01 - 0.5*(sp[1] - psp1)
     psp1 = sp[1]
     
     -- Rotational control:
-    euler     = sim.getObjectOrientation( d, -1) 
-    rotCorr   = euler[3]*0.1+2*(euler[3]-prevEuler)
-    prevEuler = euler[3]
+    alpha = 0
+    rotVal = newrot*(1 - alpha) + alpha*rotVal
+    rotCorr   = rotVal*0.001+0.002*(rotVal-prevEuler)
+    prevEuler = rotVal
+    
     
     -- Decide of the motor velocities:
     particlesTargetVelocities[1] = thrust*(1 - alphaCorr + betaCorr + rotCorr)
