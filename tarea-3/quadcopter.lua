@@ -23,6 +23,17 @@ module(..., package.seeall )
 		self.qdrPos = {0,0,0}
 		self.corrCam = {0,0}
 		
+		self.thrust_e    = 0
+		self.thrust_ecum = 0
+		
+		self.pAlphaE = 0
+		self.psp2	 = 0
+		
+		self.pBetaE  = 0
+		self.psp1    = 0
+		
+		self.prevRot = 0
+		
 		euler  = sim.getObjectOrientation( d, -1) 
 		rotVal = euler[3]
 		self.rotation = rotVal
@@ -39,7 +50,7 @@ module(..., package.seeall )
 	
 	function quadcopter:calculateAltitude( detection )
 		alpha = 0.985
-		targetAltitude = detection and 0.5 or 4
+		targetAltitude = detection and 0.6 or 4
 		self.altitude = targetAltitude*(1 - alpha) + alpha*self.altitude
 		return self.altitude
 	end
@@ -54,7 +65,7 @@ module(..., package.seeall )
 			if self.numclose == 0 then
 				self.qdrPos = pos
 			elseif self.numclose == 10 then			
-				self.rotation = math.atan2( pos[2] - qdrPos[2], pos[1] - qdrPos[1] ) 
+				self.rotation = math.atan2( pos[2] - self.qdrPos[2], pos[1] - self.qdrPos[1] ) 
 				self.qdrPos = pos
 				self.numclose = 0
 			end
@@ -77,6 +88,49 @@ module(..., package.seeall )
 		sp = {0.5 - imgPos[1]  + self.corrCam[1], 0.5 - imgPos[2]  + self.corrCam[2]}
     
 		return sp
+	end
+	
+	
+	
+	function quadcopter:updateThrust( altitude, targetAlt, l )
+		
+		pParam = 2
+		iParam = 0.1
+		dParam = 0.02
+		vParam = -2 
+		
+		e = targetAlt - altitude
+		self.thrust_ecum = self.thrust_ecum + e
+		thrust = 5.335 + pParam*e + iParam*self.thrust_ecum + dParam*(e-self.thrust_e) + vParam*l[3]
+		self.thrust_e    = e
+		
+		return thrust
+	end
+	
+	
+	function quadcopter:updateHorizontalCorrection( m, sp )
+	    	    
+	    vy = sim.multiplyVector( m, {0,1,0} )
+		alphaE = vy[3] - m[12]
+		alphaCorr = 0.15*alphaE + 1.8*(alphaE - self.pAlphaE) + sp[2]*0.005 + 0.5*(sp[2] - self.psp2)
+		self.pAlphaE = alphaE
+		self.psp2 = sp[2]
+    
+		vx = sim.multiplyVector( m, {1,0,0} )
+		betaE = vx[3] - m[12]
+		betaCorr  = -0.15*betaE - 1.8*(betaE - self.pBetaE) - sp[1]*0.005 - 0.5*(sp[1] - self.psp1)
+		self.pBetaE = betaE
+		self.psp1 = sp[1]
+		
+		return { alphaCorr, betaCorr}
+	
+	end
+	
+	
+	function quadcopter:updateRotation( targetRot )
+		rotCorr   = targetRot*0.001 + 0.002*( targetRot - self.prevRot )
+		self.prevRot = targetRot
+		return rotCorr
 	end
 	
 	
