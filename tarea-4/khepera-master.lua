@@ -1,35 +1,22 @@
 
-
 local rob = require("robot")
-local slam = require("slam")
 
 function sysCall_threadmain()
-	
 	------------Llamando a los elementos------------------    
 
 	local robotID = ''
-	local Kf = 0.1 --Cooperative factor
-    local rb = robot:new( 'master', robotID )
-    local sizeCell = {-3,3}
-    local slam = slam:new( sizeCell )
-    local targeElement = sim.getObjectHandle('Targetpoint')
-    local p_target = sim.getObjectPosition( targeElement, -1 )    
+	local rb = robot:new( 'master', robotID )
 	
+   
 	sim.setThreadAutomaticSwitch(false) -- disable automatic thread switches
-	rb:setCooperativeFactor( Kf ) 
 	
-	-- Here we execute the regular thread code:
     while sim.getSimulationState()~=sim.simulation_advancing_abouttostop do
+		
+			-- Send the sensor data to sensormap
+			sim.setStringSignal("master",sim.packTable( robot:getSensorsData( ) ))
 
-			sim.setStringSignal("masterPos",sim.packTable( {rb:getposition( ), rb:getOrientation( ) } ))
-			rb:getSlavesError( 3 )
-			
-			wr,wl = rb:getAngularSpeed( p_target )
+			wr,wl = rb:moveRandom( 0.1 , 0.05 )
 			rb:setTargetVelocity( wr, wl )
-			
-			--if rb:isTargetReach( p_target ) then
-			--	sim.pauseSimulation()
-			--end
 			
 			sim.switchThread() -- Explicitely switch to another thread now!
 	end 
@@ -40,3 +27,4 @@ end
 function sysCall_cleanup()
 	-- Put some clean-up code here:
 end
+

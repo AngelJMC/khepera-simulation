@@ -76,6 +76,22 @@ module(..., package.seeall )
 		return o_robot[3]
 	end
 
+	function robot:getSensorIDs( )
+		return self.sensor
+	end
+
+
+	function robot:getSensorsData( )
+		local sensData = {}
+		for i=1,5 do
+			--irDetect,irDist = sim.readProximitySensor( self.sensor[i], sim_handle_all )
+			--sPos = sim.getObjectPosition( self.sensor[i], -1 )
+			--sOri = sim.getObjectOrientation( self.sensor[i], -1 )
+			--sensData[i] = {sPos, sOri, irDetect, irDist }
+			sensData[i] = self.sensor[i]
+		end
+		return sensData
+	end
 
 	function robot:getOrientationErrorToTarget ( p_target )
 
@@ -141,7 +157,6 @@ module(..., package.seeall )
 		end
 		return distance
 	end
-	
 	
 	
 	function robot:getAngularSpeed( p_target )
