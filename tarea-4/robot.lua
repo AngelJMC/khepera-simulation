@@ -12,8 +12,8 @@ module(..., package.seeall )
 	-- Braintenberg Algorithm param
 	local SdistMax = 0.25 --m  
 	
-	local Ws = {{ 0,  -1.5, 0.9, 1.3,   1 }, 
-			{   1, 1.3, 0.9,  -1.5, 0 } }
+	local Ws = {{ 0,  -1.5, 1, 1.3,   1 }, 
+			{   1, 1.3, -1,  -1.5, 0 } }
 			
 	
 	function robot:new( class, id, theta, dist )
@@ -84,10 +84,6 @@ module(..., package.seeall )
 	function robot:getSensorsData( )
 		local sensData = {}
 		for i=1,5 do
-			--irDetect,irDist = sim.readProximitySensor( self.sensor[i], sim_handle_all )
-			--sPos = sim.getObjectPosition( self.sensor[i], -1 )
-			--sOri = sim.getObjectOrientation( self.sensor[i], -1 )
-			--sensData[i] = {sPos, sOri, irDetect, irDist }
 			sensData[i] = self.sensor[i]
 		end
 		return sensData
@@ -184,8 +180,8 @@ module(..., package.seeall )
 			if robot:isAnyDetection( ) then
 				Sdist = robot:getDistanceVector( )
 				res = robot:calculateObs( Sdist ) 
-				wr = res[1][1]*Coef
-				wl = res[2][1]*Coef
+				wr = res[1][1]*5--Coef
+				wl = res[2][1]*5--Coef
 			else
 				-- Cinematic model, get the angular velocity wheels from linear 
 				-- and angular robot velocity.

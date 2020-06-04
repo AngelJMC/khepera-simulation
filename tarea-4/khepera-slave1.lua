@@ -15,7 +15,7 @@ function sysCall_threadmain()
 			-- Send the sensor data to sensormap
 			sim.setStringSignal("slave#1",sim.packTable( robot:getSensorsData( ) ))
 			
-			wr,wl = rb:moveRandom( 0.1 , -0.1 )
+			wr,wl = rb:moveRandom( 0.2 , 0.0 )
 			rb:setTargetVelocity( wr, wl ) 
 
 			sim.switchThread() -- Explicitely switch to another thread now!

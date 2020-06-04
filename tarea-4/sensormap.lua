@@ -46,7 +46,9 @@ function sysCall_sensing()
         
         --Iterate over each Khepera
         for i=1,4 do
-            slam:updateNeighborhoodCells( sensorData[i] )
+            if sensorData[i] then
+                slam:updateNeighborhoodCells( sensorData[i] )
+            end
             --print( sensorData[i] ) 
         end
 

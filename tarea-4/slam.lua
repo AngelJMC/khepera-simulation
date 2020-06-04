@@ -66,14 +66,23 @@ module(..., package.seeall )
 			for i=1,5 do
 				
 				local irDetect,irDist = sim.readProximitySensor( sensorIDs[i], sim_handle_all )
+				
 				sPos = sim.getObjectPosition( sensorIDs[i], -1 )
 				sOri = sim.getObjectOrientation( sensorIDs[i], -1 )
 
-				sim.setObjectPosition( self.testpoint, sensorIDs[i] , {0,0,0.25} )
+				dist = 0.25
+				if irDetect == 1 then
+					dist = irDist
+					--print(irDist)
+				end
+
+				sim.setObjectPosition( self.testpoint, sensorIDs[i] , {0,0,dist} )
+				
 				dPos = sim.getObjectPosition( self.testpoint, -1 )
 				coord = dPos
 				
-				for i=1,5 do
+				--for i=1,4 do
+				i = 4
 					coord[1] = sPos[1] + (i/4)*(dPos[1] - sPos[1])
 					coord[2] = sPos[2] + (i/4)*(dPos[2] - sPos[2])
 					sim.setObjectPosition( self.testpoint,-1 , coord )
@@ -98,7 +107,7 @@ module(..., package.seeall )
 					--Aplicar bayes
 					self.grid[iy][ix] = ( sensVal * self.grid[iy][ix] ) / ( sensVal * self.grid[iy][ix] + (1-sensVal)*(1-self.grid[iy][ix])) 
 					
-				end
+				--end
 			end
 
 
