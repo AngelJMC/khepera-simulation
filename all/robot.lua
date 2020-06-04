@@ -37,22 +37,24 @@ module(..., package.seeall )
 		self.p_robotOrig = simGetObjectPosition( self.body , -1 )
 		self.d_toTarg = 0
 		self.slaveErr = 0
-		self.Kf = 0
+		self.Kf = 0.0
+
+		self.controlRule = "advance"
 		
-		
+		self.Vmax   = 0.20
+		self.Vmin	= 0.12
+		self.Kr     = 0.2
+		self.Ki		= 0.1
+		self.wmax   = 2
+
 		if class == 'master' then
-			self.Vmax   = 0.2--0.19
+			self.Vmax   = 0.19
 			self.Vmin	= 0.08
 			self.Kr     = 0.3
 			self.Ki		= 0.1
-			self.wmax   = 0.7--1.5
-		else
-			self.Vmax   = 0.20
-			self.Vmin	= 0.12
-			self.Kr     = 0.2
-			self.Ki		= 0.1
-			self.wmax   = 3
+			self.wmax   = 0.7	
 		end
+		
 		return o
 	end
 	
@@ -82,6 +84,7 @@ module(..., package.seeall )
 	end
 
 
+
 	function robot:getSensorsData( )
 		local sensData = {}
 		for i=1,5 do
@@ -98,9 +101,34 @@ module(..., package.seeall )
 		return o_robot[3] - alpha
 	end
 
+	function robot:setBasicControlRule( )
+		self.controlRule = "basic"
+	end
+
+	function robot:runBasicControlRule ( d_toTarget , ori_err )
+	
+		Kp = 0.22
+		wmax = 1.5
 		
+		v={}
+		v[1] = Kp * d_toTarget
+		v[2] = wmax * math.sin( ori_err )
+		
+		return v
+	end
+		
+	function robot:setNewControlParameter( Wmax, Vmax, Vmin, Kr, Ki )
+
+		self.Vmax   = Vmax
+		self.Vmin	= Vmin
+		self.Kr     = Kr
+		self.Ki		= Ki
+		self.wmax   = Wmax
+		
+	end
+
 	function robot:runAdvanceControlRule ( d_toTarget, d_toOrig, ori_err )
-		
+
 		local v={}
 		if d_toOrig < self.Ki then
 			v[1] = math.max ( d_toOrig * (self.Vmax / self.Ki), self.Vmin )
@@ -159,7 +187,7 @@ module(..., package.seeall )
 	
 	function robot:getAngularSpeed( p_target )
 			
-			
+		
 			p_robot  = sim.getObjectPosition( self.body, -1 )
 			
 			if self.class == 'master' then
@@ -168,10 +196,18 @@ module(..., package.seeall )
 				d_toOrig = 0.2
 			end
 	
-			self.d_toTarg = robot:getDistanceToTarget ( p_target )
-			ori_err = robot:getOrientationErrorToTarget ( p_target )
-			v = robot:runAdvanceControlRule ( self.d_toTarg, d_toOrig, ori_err )
+			self.d_toTarg = self:getDistanceToTarget ( p_target )
+			ori_err = self:getOrientationErrorToTarget ( p_target )
 			
+			local v={}
+			if  self.controlRule == "advance" then
+				v = self:runAdvanceControlRule ( self.d_toTarg, d_toOrig, ori_err )
+			elseif self.controlRule == "basic" then
+				v = self:runBasicControlRule ( self.d_toTarg , ori_err )
+			else
+				print('Error control rule' )
+			end
+
 			-- Cooperative rule
 			if self.class == 'master' and self.Kf > 0.0 then
 				v[1] = v[1]  -  self.Kf*self.slaveErr
@@ -179,9 +215,9 @@ module(..., package.seeall )
 			end
 			
 					
-			if robot:isAnyDetection( ) then
-				Sdist = robot:getDistanceVector( )
-				res = robot:calculateObs( Sdist ) 
+			if self:isAnyDetection( ) then
+				Sdist = self:getDistanceVector( )
+				res = self:calculateObs( Sdist ) 
 				wr = res[1][1]*Coef
 				wl = res[2][1]*Coef
 			else
@@ -199,9 +235,9 @@ module(..., package.seeall )
 		v[1] = vlineal
 		v[2] = vangular
 			
-		if robot:isAnyDetection( ) then
-			Sdist = robot:getDistanceVector( )
-			res = robot:calculateObs( Sdist ) 
+		if self:isAnyDetection( ) then
+			Sdist = self:getDistanceVector( )
+			res = self:calculateObs( Sdist ) 
 			wr = res[1][1]*Coef
 			wl = res[2][1]*Coef
 		else
@@ -238,8 +274,8 @@ module(..., package.seeall )
 			p_robotMaster = sim.unpackTable(data)
 		end
 				
-		p_master = p_robotMaster[1] == nil and robot:getposition( ) or p_robotMaster[1]
-		o_master  = p_robotMaster[2] == nil and robot:getOrientation( ) or p_robotMaster[2]
+		p_master = p_robotMaster[1] == nil and self:getposition( ) or p_robotMaster[1]
+		o_master  = p_robotMaster[2] == nil and self:getOrientation( ) or p_robotMaster[2]
 		
 		offset = math.pi/2	
 		p_target = p_master

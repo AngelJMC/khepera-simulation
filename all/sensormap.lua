@@ -27,7 +27,7 @@ function sysCall_sensing()
     
 
     --Number/string signalValue=sim.waitForSignal("masterSensor")
-    rname = {"master", "slave#0", "slave#1", "slave#2"}
+    rname = {"master", "master#0", "master#1", "master#2"}
     local sensorData = {}
     for i=1,4 do
         local pack = sim.getStringSignal( rname[i] )
