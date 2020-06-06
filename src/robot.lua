@@ -6,15 +6,14 @@ module(..., package.seeall )
 	
 	wheelsdist = 0.1
 	rwheel = 0.02
-	Coef = 2
+	Coef = 3
 	
 	
 	-- Braintenberg Algorithm param
 	local SdistMax = 0.25 --m  
 	
-	local Ws = {{ 0,  -0.7,  0.4,   0.8,     0.9 }, 
-			    {    0.9,   0.8,  0.4,  -0.7,  0 }}
-			
+	local Ws = {{  2,    4,  2.8, -3,  -3 }, 
+			    { -3,   -3,    3,  4,   2 }}		
 	
 	function robot:new( class, id, theta, dist )
 	
@@ -181,15 +180,15 @@ module(..., package.seeall )
 
 
 	function robot:calculateObs( Sdist ) 
-		local dist = {} -- create the matrix
+		local S = {} -- create the matrix
 		for i=1,5 do
-		  dist[i] = {}     -- create a new row
+		  S[i] = {}     -- create a new row
 		  for j=1,1 do
-			dist[i][j] = ( 1 - (  1 - SdistMax /  Sdist[i] ) ) 
+			S[i][j] = Sdist[i] / SdistMax  
 		  end
 		end
  
-		return lib.MatMul( Ws, dist )
+		return lib.MatMul( Ws, S )
 	end
 	
 	
