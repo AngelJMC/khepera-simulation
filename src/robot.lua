@@ -12,8 +12,8 @@ module(..., package.seeall )
 	-- Braintenberg Algorithm param
 	local SdistMax = 0.25 --m  
 	
-	local Ws = {{ -0.7,  -0.7, 0., 0.8,   1 }, 
-			{   1, 0.8, 0.5,  -0.7, -0.7 } }
+	local Ws = {{ 0,  -0.7,  0.4,   0.8,     0.9 }, 
+			    {    0.9,   0.8,  0.4,  -0.7,  0 }}
 			
 	
 	function robot:new( class, id, theta, dist )
@@ -23,19 +23,19 @@ module(..., package.seeall )
 		self.__index = self
 		
 		self.class = class == 'master' and class or 'slave'
-		self.body 		= sim.getObjectHandle( 'Khepera_IV' .. id )
+		self.khepera 	= sim.getObjectHandle( 'Khepera_IV' .. id )
 		self.rightMotor = sim.getObjectHandle( 'K4_Right_Motor' .. id )
 		self.leftMotor 	= sim.getObjectHandle( 'K4_Left_Motor' .. id )
 		self.sensor 	= {}
 		for i=1,5 do 
 			self.sensor[i] = sim.getObjectHandle( 'K4_Infrared_' .. i + 1 .. id )
 		end
-		self.enDetection = true;
+		self.enDetection = false;
 		self.theta = theta
 		self.dist  = dist
 		self.wl_sma = lib.sma(15)
 		self.wr_sma = lib.sma(15)
-		self.p_robotOrig = simGetObjectPosition( self.body , -1 )
+		self.p_robotOrig = simGetObjectPosition( self.khepera , -1 )
 		self.d_toTarget = 0
 		self.ori_err = 0
 		self.slaveErr = 0
@@ -62,29 +62,25 @@ module(..., package.seeall )
 	
 	
 	function robot:test()
-		print("Library OOP!!")
+		print("Library Robot OOP!!")
 	end
 	
 	
 	function robot:getposition( )
-		return sim.getObjectPosition( self.body, -1 )
+		return sim.getObjectPosition( self.khepera, -1 )
 	end
 	
-	function robot:getDistanceToTarget( p_target )
 
-		local p_robot  = sim.getObjectPosition( self.body, -1 )    
+	function robot:getDistanceToTarget( p_target )
+		local p_robot  = sim.getObjectPosition( self.khepera, -1 )    
 		return math.sqrt( ( p_target[1] - p_robot[1] )^2 + ( p_target[2] - p_robot[2])^2 )
 	end
-		
+	
+	
 	function robot:getOrientation( )
-		local o_robot =  sim.getObjectOrientation( self.body, -1)
+		local o_robot =  sim.getObjectOrientation( self.khepera, -1)
 		return o_robot[3]
 	end
-
-	function robot:getSensorIDs( )
-		return self.sensor
-	end
-
 
 
 	function robot:getSensorsData( )
@@ -95,32 +91,21 @@ module(..., package.seeall )
 		return sensData
 	end
 
-	function robot:getOrientationErrorToTarget ( p_target )
 
-		local p_robot  = sim.getObjectPosition( self.body, -1 )
-		local o_robot  = sim.getObjectOrientation( self.body, -1 )
+	function robot:getOrientationErrorToTarget ( p_target )
+		local p_robot  = sim.getObjectPosition( self.khepera, -1 )
+		local o_robot  = sim.getObjectOrientation( self.khepera, -1 )
 		local alpha = math.atan2( p_target[2] - p_robot[2], p_target[1] - p_robot[1] )   
 		return o_robot[3] - alpha
 	end
+
 
 	function robot:setBasicControlRule( )
 		self.controlRule = "basic"
 	end
 
-	function robot:runBasicControlRule ( )
-	
-		Kp = 0.22
-		wmax = 1.5
-		
-		local v={}
-		v[1] = Kp * self.d_toTarget
-		v[2] = wmax * math.sin( self.ori_err )
-		
-		return v
-	end
-		
-	function robot:setNewControlParameter( Wmax, Vmax, Vmin, Kr, Ki )
 
+	function robot:setNewControlParameter( Wmax, Vmax, Vmin, Kr, Ki )
 		self.Vmax   = Vmax
 		self.Vmin	= Vmin
 		self.Kr     = Kr
@@ -128,14 +113,26 @@ module(..., package.seeall )
 		self.wmax   = Wmax
 	end
 
-	function robot:runAdvanceControlRule ( )
-		
+
+	function robot:runBasicControlRule ( )
+		local Kp = 0.22
+		local wmax = 1.5
 		local v={}
-		p_robot  = sim.getObjectPosition( self.body, -1 )
+		
+		v[1] = Kp * self.d_toTarget
+		v[2] = wmax * math.sin( self.ori_err )
+		
+		return v
+	end
+		
+
+	function robot:runAdvanceControlRule ( )
+		local v={}
+		local p_robot  = sim.getObjectPosition( self.khepera, -1 )
+		local d_toOrig = 0.2
+		
 		if self.class == 'master' then
 			d_toOrig = math.sqrt( ( p_robot[1] - self.p_robotOrig[1] )^2 + ( p_robot[2] - self.p_robotOrig[2] )^2 )
-		else 
-			d_toOrig = 0.2
 		end
 
 		if d_toOrig < self.Ki then
@@ -152,22 +149,10 @@ module(..., package.seeall )
 	end	
 
 
-	function robot:calculateObs( Sdist ) 
-
-		local dist = {}          -- create the matrix
-		for i=1,5 do
-		  dist[i] = {}     -- create a new row
-		  for j=1,1 do
-			dist[i][j] = ( 1 - (  1 - SdistMax /  Sdist[i] ) ) 
-		  end
-		end
- 
-		return lib.MatMul( Ws, dist )
+	function robot:enableDetectionAlgorithm( )
+		self.enDetection = true;
 	end
 
-	function robot:disableDetection( )
-		self.enDetection = false;
-	end
 
 	function robot:isAnyDetection( )
 		local detection = false
@@ -193,11 +178,22 @@ module(..., package.seeall )
 		end
 		return distance
 	end
+
+
+	function robot:calculateObs( Sdist ) 
+		local dist = {} -- create the matrix
+		for i=1,5 do
+		  dist[i] = {}     -- create a new row
+		  for j=1,1 do
+			dist[i][j] = ( 1 - (  1 - SdistMax /  Sdist[i] ) ) 
+		  end
+		end
+ 
+		return lib.MatMul( Ws, dist )
+	end
 	
 	
-	
-	function robot:getAngularSpeed( p_target )
-			
+	function robot:getAngularSpeed( p_target )	
 		-- Execute a control rule.
 		self.d_toTarget = self:getDistanceToTarget ( p_target )
 		self.ori_err = self:getOrientationErrorToTarget ( p_target )
@@ -233,6 +229,7 @@ module(..., package.seeall )
 		return wr, wl
 	end
 	
+
 	function robot:moveRandom( vlineal, vangular)
 		local v={}
 		v[1] = vlineal
@@ -259,18 +256,15 @@ module(..., package.seeall )
 			-- Set angular velocity for each wheel.
 			sim.setJointTargetVelocity(leftMotor,  self.wl_sma(wl) ) --Cm/s a m/s
 			sim.setJointTargetVelocity(rightMotor, self.wr_sma(wr) )
-	
 	end
 	
 	
 	function robot:isTargetReach( p_target )
-	
-		return 0.005 > self.d_toTarget and true or false 
-			
+		return 0.005 > self.d_toTarget and true or false 	
 	end
 	
+
 	function robot:getSlaveTargetPos( )
-	
 		local data=sim.getStringSignal("masterPos")
 		p_robotMaster = {}
 		if data then
@@ -285,14 +279,15 @@ module(..., package.seeall )
 		p_target[1] = p_master[1] + self.dist*math.cos( o_master + self.theta - offset)
 		p_target[2] = p_master[2] + self.dist*math.sin( o_master + self.theta - offset)
 		
-		
 		return p_target
 	end
+
 
 	function robot:getErrorToTarget( )
 		return self.d_toTarget
 	end
 
+	
 	function robot:getErrorOrientation( )
 		return self.ori_err
 	end
@@ -306,6 +301,7 @@ module(..., package.seeall )
 		end
 		self.slaveErr = acumerr
 	end
+	
 	
 	function robot:setCooperativeFactor( value ) 
 		self.Kf = value
