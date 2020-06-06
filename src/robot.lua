@@ -15,13 +15,13 @@ module(..., package.seeall )
 	local Ws = {{  2,    4,  2.8, -3,  -3 }, 
 			    { -3,   -3,    3,  4,   2 }}		
 	
-	function robot:new( class, id, theta, dist )
+	function robot:new( type, id, theta, dist )
 	
 		o = o or {}
 		setmetatable(o, self)
 		self.__index = self
 		
-		self.class = class == 'master' and class or 'slave'
+		self.type       = type == 'master' and type or 'slave'
 		self.khepera 	= sim.getObjectHandle( 'Khepera_IV' .. id )
 		self.rightMotor = sim.getObjectHandle( 'K4_Right_Motor' .. id )
 		self.leftMotor 	= sim.getObjectHandle( 'K4_Left_Motor' .. id )
@@ -29,6 +29,7 @@ module(..., package.seeall )
 		for i=1,5 do 
 			self.sensor[i] = sim.getObjectHandle( 'K4_Infrared_' .. i + 1 .. id )
 		end
+		
 		self.enDetection = false;
 		self.theta = theta
 		self.dist  = dist
@@ -46,9 +47,9 @@ module(..., package.seeall )
 		self.Vmin	= 0.12
 		self.Kr     = 0.2
 		self.Ki		= 0.1
-		self.wmax   = 1.5
+		self.wmax   = 2
 
-		if class == 'master' then
+		if type == 'master' then
 			self.Vmax   = 0.19
 			self.Vmin	= 0.08
 			self.Kr     = 0.3
@@ -70,27 +71,18 @@ module(..., package.seeall )
 	end
 	
 
-	function robot:getDistanceToTarget( p_target )
-		local p_robot  = sim.getObjectPosition( self.khepera, -1 )    
-		return math.sqrt( ( p_target[1] - p_robot[1] )^2 + ( p_target[2] - p_robot[2])^2 )
-	end
-	
-	
 	function robot:getOrientation( )
 		local o_robot =  sim.getObjectOrientation( self.khepera, -1)
 		return o_robot[3]
 	end
 
 
-	function robot:getSensorsData( )
-		local sensData = {}
-		for i=1,5 do
-			sensData[i] = self.sensor[i]
-		end
-		return sensData
+	function robot:getDistanceToTarget( p_target )
+		local p_robot  = sim.getObjectPosition( self.khepera, -1 )    
+		return math.sqrt( ( p_target[1] - p_robot[1] )^2 + ( p_target[2] - p_robot[2])^2 )
 	end
-
-
+	
+	
 	function robot:getOrientationErrorToTarget ( p_target )
 		local p_robot  = sim.getObjectPosition( self.khepera, -1 )
 		local o_robot  = sim.getObjectOrientation( self.khepera, -1 )
@@ -130,7 +122,7 @@ module(..., package.seeall )
 		local p_robot  = sim.getObjectPosition( self.khepera, -1 )
 		local d_toOrig = 0.2
 		
-		if self.class == 'master' then
+		if self.type == 'master' then
 			d_toOrig = math.sqrt( ( p_robot[1] - self.p_robotOrig[1] )^2 + ( p_robot[2] - self.p_robotOrig[2] )^2 )
 		end
 
@@ -179,7 +171,7 @@ module(..., package.seeall )
 	end
 
 
-	function robot:calculateObs( Sdist ) 
+	function robot:calculateBraitenbergAlgorithm( Sdist ) 
 		local S = {} -- create the matrix
 		for i=1,5 do
 		  S[i] = {}     -- create a new row
@@ -187,12 +179,13 @@ module(..., package.seeall )
 			S[i][j] = Sdist[i] / SdistMax  
 		  end
 		end
- 
-		return lib.MatMul( Ws, S )
+		res = lib.MatMul( Ws, S )
+		return res[1][1]*Coef, res[2][1]*Coef
+		
 	end
 	
 	
-	function robot:getAngularSpeed( p_target )	
+	function robot:getMotorSpeed( p_target )	
 		-- Execute a control rule.
 		self.d_toTarget = self:getDistanceToTarget ( p_target )
 		self.ori_err = self:getOrientationErrorToTarget ( p_target )
@@ -207,18 +200,16 @@ module(..., package.seeall )
 		end
 
 		-- Cooperative rule, only if master and Cooperative factor > 0
-		if self.class == 'master' and self.Kf > 0.0 then
+		if self.type == 'master' and self.Kf > 0.0 then
 			v[1] = v[1]  -  self.Kf*self.slaveErr
 			v[1] = v[1] < 0.05 and 0.05 or v[1]
 		end
 		
 		
 		if self:isAnyDetection( ) and self.enDetection == true then
-			-- Calcula the angular velocity wheels if there is any detection.
+			-- Calculate the angular velocity wheels if there is any detection.
 			Sdist = self:getDistanceVector( )
-			res = self:calculateObs( Sdist ) 
-			wr = res[1][1]*Coef
-			wl = res[2][1]*Coef
+			wr,wl = self:calculateBraitenbergAlgorithm( Sdist ) 
 		else
 			-- Calculate the angular velocity wheels from linear angular robot velocity.
 			wr = (2*v[1] - v[2]*wheelsdist) / (2*rwheel)
@@ -229,16 +220,24 @@ module(..., package.seeall )
 	end
 	
 
+	function robot:getSensorsData( )
+		local sensData = {}
+		for i=1,5 do
+			sensData[i] = self.sensor[i]
+		end
+		return sensData
+	end
+
+
 	function robot:moveRandom( vlineal, vangular)
 		local v={}
 		v[1] = vlineal
 		v[2] = vangular
 			
 		if self:isAnyDetection( ) and self.enDetection == true then
+			-- Calculate the angular velocity wheels if there is any detection.
 			Sdist = self:getDistanceVector( )
-			res = self:calculateObs( Sdist ) 
-			wr = res[1][1]*Coef
-			wl = res[2][1]*Coef
+			wr, wl = self:calculateBraitenbergAlgorithm( Sdist ) 
 		else
 			-- Cinematic model, get the angular velocity wheels from linear 
 			-- and angular robot velocity.
@@ -263,6 +262,16 @@ module(..., package.seeall )
 	end
 	
 
+	function robot:getErrorToTarget( )
+		return self.d_toTarget
+	end
+
+	
+	function robot:getErrorOrientation( )
+		return self.ori_err
+	end
+
+
 	function robot:getSlaveTargetPos( )
 		local data=sim.getStringSignal("masterPos")
 		p_robotMaster = {}
@@ -282,16 +291,6 @@ module(..., package.seeall )
 	end
 
 
-	function robot:getErrorToTarget( )
-		return self.d_toTarget
-	end
-
-	
-	function robot:getErrorOrientation( )
-		return self.ori_err
-	end
-
-	
 	function robot:getSlavesError( nslaves )
 		acumerr = 0
 		for i=1,nslaves do
