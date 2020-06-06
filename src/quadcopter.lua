@@ -3,13 +3,6 @@ module(..., package.seeall )
 	local self = { }
 	
 	
-	--wheelsdist = 0.1
-	--rwheel = 0.02
-	--Coef = 2
-	
-	
-
-	
 	function quadcopter:new(  d )
 	
 		o = o or {}
@@ -20,8 +13,8 @@ module(..., package.seeall )
 		self.d = d
 		self.altitude = 0.5
 		self.numclose = 0
-		self.qdrPos = {0,0,0}
-		self.corrCam = {0,0}
+		self.qdrPos   = {0,0,0}
+		self.corrCam  = {0,0}
 		
 		self.thrust_e    = 0
 		self.thrust_ecum = 0
@@ -38,7 +31,6 @@ module(..., package.seeall )
 		rotVal = euler[3]
 		self.rotation = rotVal
 		
-		
 		return o
 	end
 	
@@ -47,6 +39,36 @@ module(..., package.seeall )
 		print("Library OOP quadcopter!!")
 	end
 	
+
+	function quadcopter:cameraDetectKhepera( cam )
+
+		liderDetection = false	
+		result,t0,t1=sim.readVisionSensor(cam) -- Here we read the image processing camera!
+		pos = {0,0}
+		
+		if t1 then -- in t1 we should have the blob information if the camera was set-up correctly		
+			blobCount          = t1[1]
+			dataSizePerBlob    = t1[2]
+				
+			-- Now we go through all blobs:
+			for i=1,blobCount,1 do
+				idxb = 2+(i-1)*dataSizePerBlob
+				blobSize		  = t1[idxb + 1]
+				blobPos			  = { t1[idxb + 3], t1[idxb + 4] }
+		
+				if blobSize>0.0001 then
+					res = sim.getVisionSensorResolution(cam)
+					blobCol = sim.getVisionSensorImage( cam, res[1]*blobPos[1], res[2]*blobPos[2], 1, 1)
+					if blobCol[1] > blobCol[2] and blobCol[1] > blobCol[3] then
+						pos = blobPos
+						liderDetection = true
+					end
+				end
+			end
+		end
+		return{ liderDetection, pos }
+	end
+
 	
 	function quadcopter:calculateAltitude( detection )
 		alpha = 0.985
@@ -58,7 +80,6 @@ module(..., package.seeall )
 
 	function quadcopter:calculateRotation( detection, rTocenter )
 	
-		
 		pos = sim.getObjectPosition( self.d,-1 )
 		
 		if detection and rTocenter < 0.2 then
@@ -86,10 +107,8 @@ module(..., package.seeall )
 			self.corrCam[2] =  1*math.sin(orit[1])
 		end
 		sp = {0.5 - imgPos[1]  + self.corrCam[1], 0.5 - imgPos[2]  + self.corrCam[2]}
-    
 		return sp
 	end
-	
 	
 	
 	function quadcopter:updateThrust( altitude, targetAlt, l )
@@ -123,7 +142,6 @@ module(..., package.seeall )
 		self.psp1 = sp[1]
 		
 		return { alphaCorr, betaCorr}
-	
 	end
 	
 	
@@ -134,36 +152,7 @@ module(..., package.seeall )
 	end
 	
 	
-	function quadcopter:cameraDetectKhepera( cam )
 
-	liderDetection = false	
-	result,t0,t1=sim.readVisionSensor(cam) -- Here we read the image processing camera!
-	pos = {0,0}
-    if t1 then -- in t1 we should have the blob information if the camera was set-up correctly
-            
-        blobCount          = t1[1]
-        dataSizePerBlob    = t1[2]
-            
-        -- Now we go through all blobs:
-        for i=1,blobCount,1 do
-			idxb = 2+(i-1)*dataSizePerBlob
-			blobSize		  = t1[idxb + 1]
-            --blobOrientation   = t1[idxb + 2]
-            blobPos			  = { t1[idxb + 3], t1[idxb + 4] }
-            --blobBoxDimensions = { t1[idxb + 5], t1[idxb + 6] }
-    
-			if blobSize>0.0001 then
-				res = sim.getVisionSensorResolution(cam)
-				blobCol = sim.getVisionSensorImage( cam, res[1]*blobPos[1], res[2]*blobPos[2], 1, 1)
-				if blobCol[1] > blobCol[2] and blobCol[1] > blobCol[3] then
-					pos = blobPos
-					liderDetection = true
-				end
-			end
-		end
-	end
-	return{ liderDetection, pos }
-	end
 	
 	
 	
