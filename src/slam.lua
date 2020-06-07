@@ -63,15 +63,15 @@ module(..., package.seeall )
 				for i=1,5 do		
 					local irDetect,irDist = sim.readProximitySensor( sensorIDs[i], sim_handle_all )
 
-					dist = ( irDetect == 1 ) and irDist or 0.25
+					dist = ( irDetect == 1 ) and irDist or 0.20
 					sim.setObjectPosition( self.testpoint, sensorIDs[i] , {0,0,dist} )
 					coord = sim.getObjectPosition( self.testpoint, -1 )
 					--Transform coordenates to matrix grid
 					ix,iy = slam:transformCoordinatesToGrid( coord )
-					sensVal = ( irDetect == 1 ) and (0.5 + 0.5/Kd ) or 0.15
+					sensVal = ( irDetect == 1 ) and (0.5 + 0.5/Kd ) or 0.1
 
 					--Aplicar bayes
-					self.grid[iy][ix] = ( sensVal * self.grid[iy][ix] ) / ( sensVal * self.grid[iy][ix] + (1-sensVal)*(1-self.grid[iy][ix])) 	
+					self.grid[iy][ix] = ( sensVal*self.grid[iy][ix] ) / ( sensVal*self.grid[iy][ix] + (1-sensVal)*(1-self.grid[iy][ix])) 	
 				end
 			end
 		end
